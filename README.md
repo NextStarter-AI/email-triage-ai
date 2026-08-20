@@ -29,7 +29,7 @@ This reduces response time and prevents important emails from sitting unanswered
 
 1. In n8n, click **"+ Add workflow"**.
 2. Click the three dots (**⋯**) → **"Import from File"**.
-3. Select the `email-triage-ai-en.json` file.
+3. Select the `email-triage-ai.json` file.
 
 ---
 
