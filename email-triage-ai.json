@@ -16,9 +16,9 @@
     },
     {
       "parameters": {
-        "jsCode": "// See file email_code_1_limpar.js in the manual\nconst items = $input.all();\nconst output = [];\n\nfor (const item of items) {\n  try {\n    let texto = item.json.text || item.json.snippet || '';\n    texto = texto.replace(/<[^>]*>/g, ' ');\n    texto = texto.split(/\\n\\s*(On .* wrote:|Em .* escreveu:|-----\\s*Original Message\\s*-----)/i)[0];\n    texto = texto.split('\\n').filter((linha) => !linha.trim().startsWith('>')).join('\\n');\n    texto = texto.replace(/\\s{2,}/g, ' ').trim();\n    const LIMITE = 3000;\n    if (texto.length > LIMITE) texto = texto.slice(0, LIMITE) + '...';\n\n    output.push({ json: {\n      emailId: item.json.id,\n      threadId: item.json.threadId,\n      remetente: item.json.from?.value?.[0]?.address || item.json.from || 'unknown',\n      assunto: item.json.subject || '(no subject)',\n      textoLimpo: texto || '(email has no readable text content)'\n    }});\n  } catch (err) {\n    output.push({ json: { erro: true, motivo: `Failed to clean email: ${err.message}`, emailId: item.json?.id || 'unknown' } });\n  }\n}\n\nreturn output;"
+        "jsCode": "// NODE: \"Clean and Prepare Text\"\n// Removes HTML, quoted reply history, and trims the email text\n// before sending it to the AI (saves tokens and improves accuracy).\n\nconst items = $input.all();\nconst output = [];\n\nfor (const item of items) {\n  try {\n    let text = item.json.text || item.json.snippet || '';\n\n    // Remove leftover HTML tags\n    text = text.replace(/<[^>]*>/g, ' ');\n\n    // Remove quoted blocks from previous emails (common patterns)\n    text = text.split(/\\n\\s*(On .* wrote:|-----\\s*Original Message\\s*-----)/i)[0];\n\n    // Remove lines starting with \">\" (quotes)\n    text = text.split('\\n').filter((line) => !line.trim().startsWith('>')).join('\\n');\n\n    // Normalize excessive whitespace and line breaks\n    text = text.replace(/\\s{2,}/g, ' ').trim();\n\n    // Limit size to control token cost\n    const CHAR_LIMIT = 3000;\n    if (text.length > CHAR_LIMIT) {\n      text = text.slice(0, CHAR_LIMIT) + '...';\n    }\n\n    output.push({\n      json: {\n        emailId: item.json.id,\n        threadId: item.json.threadId,\n        sender: item.json.from?.value?.[0]?.address || item.json.from || 'unknown',\n        subject: item.json.subject || '(no subject)',\n        cleanText: text || '(email has no readable text content)'\n      }\n    });\n  } catch (err) {\n    output.push({\n      json: {\n        error: true,\n        reason: `Failed to clean email: ${err.message}`,\n        emailId: item.json?.id || 'unknown'\n      }\n    });\n  }\n}\n\nreturn output;"
       },
-      "id": "code-limpar",
+      "id": "code-clean",
       "name": "Clean and Prepare Text",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -37,17 +37,17 @@
           "values": [
             {
               "role": "system",
-              "content": "You are a corporate email classifier. Analyze the email and return ONLY a valid JSON, no markdown, no extra text, in this format: {\"categoria\": \"Suporte\" | \"Vendas\" | \"Financeiro\" | \"Outro\", \"confianca\": 0.0 to 1.0, \"resposta_sugerida\": \"short, polite reply text, only if it's a simple Support question, otherwise leave empty\"}. Confidence should reflect how certain you are about both the classification AND that the suggested reply is safe to send automatically."
+              "content": "You are a corporate email classifier. Analyze the email and return ONLY a valid JSON, no markdown, no extra text, in this exact format: {\"category\": \"Support\" | \"Sales\" | \"Finance\" | \"Other\", \"confidence\": 0.0 to 1.0, \"suggested_reply\": \"short, polite reply text, only if it's a simple Support question, otherwise leave empty\"}. Confidence should reflect how certain you are about both the classification AND that the suggested reply is safe to send automatically."
             },
             {
               "role": "user",
-              "content": "=Subject: {{ $json.assunto }}\n\nFrom: {{ $json.remetente }}\n\nContent:\n{{ $json.textoLimpo }}"
+              "content": "=Subject: {{ $json.subject }}\n\nFrom: {{ $json.sender }}\n\nContent:\n{{ $json.cleanText }}"
             }
           ]
         },
         "options": { "temperature": 0.2 }
       },
-      "id": "openai-classificar",
+      "id": "openai-classify",
       "name": "Classify Email with AI",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.8,
@@ -57,9 +57,9 @@
     },
     {
       "parameters": {
-        "jsCode": "// See file email_code_2_validar_ia.js in the manual\nconst CATEGORIAS_VALIDAS = ['Suporte', 'Vendas', 'Financeiro', 'Outro'];\nconst items = $input.all();\nconst output = [];\n\nfor (const item of items) {\n  const dados = $('Clean and Prepare Text').item.json;\n  try {\n    let bruto = item.json.content || item.json.message?.content || item.json.choices?.[0]?.message?.content || item.json.text || '';\n    bruto = bruto.replace(/```json|```/g, '').trim();\n    const parsed = JSON.parse(bruto);\n    const categoria = CATEGORIAS_VALIDAS.includes(parsed.categoria) ? parsed.categoria : 'Outro';\n    const confianca = (typeof parsed.confianca === 'number' && parsed.confianca >= 0 && parsed.confianca <= 1) ? parsed.confianca : 0;\n\n    output.push({ json: {\n      erro: false, emailId: dados.emailId, threadId: dados.threadId, remetente: dados.remetente, assunto: dados.assunto,\n      categoria, confianca, respostaSugerida: parsed.resposta_sugerida || '', confiancaAlta: confianca >= 0.8\n    }});\n  } catch (err) {\n    output.push({ json: {\n      erro: true, motivo: `Failed to parse AI response: ${err.message}`,\n      emailId: dados.emailId, threadId: dados.threadId, remetente: dados.remetente, assunto: dados.assunto,\n      categoria: 'Outro', confianca: 0, respostaSugerida: '', confiancaAlta: false\n    }});\n  }\n}\n\nreturn output;"
+        "jsCode": "// NODE: \"Validate AI Response\"\n// The AI must return a JSON with: category, confidence, suggested_reply.\n// This node guarantees that even if the AI \"hallucinates\" a wrong format,\n// the workflow doesn't break - it falls back to a safe default.\n\nconst VALID_CATEGORIES = ['Support', 'Sales', 'Finance', 'Other'];\n\nconst items = $input.all();\nconst output = [];\n\nfor (const item of items) {\n  const sourceData = $('Clean and Prepare Text').item.json;\n\n  try {\n    // The AI response usually comes in .content or .message.content\n    let raw =\n      item.json.content ||\n      item.json.message?.content ||\n      item.json.choices?.[0]?.message?.content ||\n      item.json.text ||\n      '';\n\n    // Remove markdown fences (```json ... ```) in case the AI adds them by mistake\n    raw = raw.replace(/```json|```/g, '').trim();\n\n    const parsed = JSON.parse(raw);\n\n    const category = VALID_CATEGORIES.includes(parsed.category)\n      ? parsed.category\n      : 'Other';\n\n    const confidence =\n      typeof parsed.confidence === 'number' && parsed.confidence >= 0 && parsed.confidence <= 1\n        ? parsed.confidence\n        : 0;\n\n    output.push({\n      json: {\n        error: false,\n        emailId: sourceData.emailId,\n        threadId: sourceData.threadId,\n        sender: sourceData.sender,\n        subject: sourceData.subject,\n        category,\n        confidence,\n        suggestedReply: parsed.suggested_reply || '',\n        highConfidence: confidence >= 0.8\n      }\n    });\n  } catch (err) {\n    // Safe fallback: if the AI fails, it falls into \"Other\" for human review\n    output.push({\n      json: {\n        error: true,\n        reason: `Failed to parse AI response: ${err.message}`,\n        emailId: sourceData.emailId,\n        threadId: sourceData.threadId,\n        sender: sourceData.sender,\n        subject: sourceData.subject,\n        category: 'Other',\n        confidence: 0,\n        suggestedReply: '',\n        highConfidence: false\n      }\n    });\n  }\n}\n\nreturn output;"
       },
-      "id": "code-validar",
+      "id": "code-validate",
       "name": "Validate AI Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -69,14 +69,14 @@
       "parameters": {
         "rules": {
           "values": [
-            { "conditions": { "conditions": [{ "leftValue": "={{ $json.categoria }}", "rightValue": "Suporte", "operator": { "type": "string", "operation": "equals" } }] }, "outputKey": "Support" },
-            { "conditions": { "conditions": [{ "leftValue": "={{ $json.categoria }}", "rightValue": "Vendas", "operator": { "type": "string", "operation": "equals" } }] }, "outputKey": "Sales" },
-            { "conditions": { "conditions": [{ "leftValue": "={{ $json.categoria }}", "rightValue": "Financeiro", "operator": { "type": "string", "operation": "equals" } }] }, "outputKey": "Finance" }
+            { "conditions": { "conditions": [{ "leftValue": "={{ $json.category }}", "rightValue": "Support", "operator": { "type": "string", "operation": "equals" } }] }, "outputKey": "Support" },
+            { "conditions": { "conditions": [{ "leftValue": "={{ $json.category }}", "rightValue": "Sales", "operator": { "type": "string", "operation": "equals" } }] }, "outputKey": "Sales" },
+            { "conditions": { "conditions": [{ "leftValue": "={{ $json.category }}", "rightValue": "Finance", "operator": { "type": "string", "operation": "equals" } }] }, "outputKey": "Finance" }
           ]
         },
         "fallbackOutput": "extra"
       },
-      "id": "switch-categoria",
+      "id": "switch-category",
       "name": "Route by Category",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
@@ -85,10 +85,10 @@
     {
       "parameters": {
         "conditions": {
-          "conditions": [{ "leftValue": "={{ $json.confiancaAlta }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true" } }]
+          "conditions": [{ "leftValue": "={{ $json.highConfidence }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true" } }]
         }
       },
-      "id": "if-confianca",
+      "id": "if-confidence",
       "name": "High Confidence?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -98,10 +98,10 @@
       "parameters": {
         "operation": "reply",
         "messageId": "={{ $json.emailId }}",
-        "message": "={{ $json.respostaSugerida }}",
+        "message": "={{ $json.suggestedReply }}",
         "options": { "labelIds": [] }
       },
-      "id": "gmail-responder",
+      "id": "gmail-reply",
       "name": "Reply Automatically",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -115,9 +115,9 @@
         "operation": "post",
         "select": "channel",
         "channelId": "REPLACE_SUPPORT_CHANNEL",
-        "text": "=📩 Support email needs review (low AI confidence)\nFrom: {{ $json.remetente }}\nSubject: {{ $json.assunto }}\nConfidence: {{ $json.confianca }}"
+        "text": "=📩 Support email needs review (low AI confidence)\nFrom: {{ $json.sender }}\nSubject: {{ $json.subject }}\nConfidence: {{ $json.confidence }}"
       },
-      "id": "slack-suporte-revisao",
+      "id": "slack-support-review",
       "name": "Notify Support (Review)",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
@@ -131,9 +131,9 @@
         "operation": "post",
         "select": "channel",
         "channelId": "REPLACE_SALES_CHANNEL",
-        "text": "=💰 New email classified as Sales\nFrom: {{ $json.remetente }}\nSubject: {{ $json.assunto }}"
+        "text": "=💰 New email classified as Sales\nFrom: {{ $json.sender }}\nSubject: {{ $json.subject }}"
       },
-      "id": "slack-vendas",
+      "id": "slack-sales",
       "name": "Notify Sales",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
@@ -147,9 +147,9 @@
         "operation": "post",
         "select": "channel",
         "channelId": "REPLACE_FINANCE_CHANNEL",
-        "text": "=💳 New email classified as Finance\nFrom: {{ $json.remetente }}\nSubject: {{ $json.assunto }}"
+        "text": "=💳 New email classified as Finance\nFrom: {{ $json.sender }}\nSubject: {{ $json.subject }}"
       },
-      "id": "slack-financeiro",
+      "id": "slack-finance",
       "name": "Notify Finance",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
@@ -163,9 +163,9 @@
         "operation": "post",
         "select": "channel",
         "channelId": "REPLACE_GENERAL_CHANNEL",
-        "text": "=❓ Email could not be classified automatically (or AI error)\nFrom: {{ $json.remetente }}\nSubject: {{ $json.assunto }}"
+        "text": "=❓ Email could not be classified automatically (or AI error)\nFrom: {{ $json.sender }}\nSubject: {{ $json.subject }}"
       },
-      "id": "slack-geral",
+      "id": "slack-general",
       "name": "Notify General Team",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
