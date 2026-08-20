@@ -26,8 +26,13 @@
     },
     {
       "parameters": {
-        "resource": "chat",
-        "model": "gpt-4o-mini",
+        "resource": "text",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
         "messages": {
           "values": [
             {
@@ -44,15 +49,15 @@
       },
       "id": "openai-classificar",
       "name": "Classify Email with AI",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1.3,
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
       "position": [280, 300],
       "continueOnFail": true,
       "credentials": { "openAiApi": { "id": "", "name": "OpenAi account" } }
     },
     {
       "parameters": {
-        "jsCode": "// See file email_code_2_validar_ia.js in the manual\nconst CATEGORIAS_VALIDAS = ['Suporte', 'Vendas', 'Financeiro', 'Outro'];\nconst items = $input.all();\nconst output = [];\n\nfor (const item of items) {\n  const dados = $('Clean and Prepare Text').item.json;\n  try {\n    let bruto = item.json.message?.content || item.json.choices?.[0]?.message?.content || item.json.text || '';\n    bruto = bruto.replace(/```json|```/g, '').trim();\n    const parsed = JSON.parse(bruto);\n    const categoria = CATEGORIAS_VALIDAS.includes(parsed.categoria) ? parsed.categoria : 'Outro';\n    const confianca = (typeof parsed.confianca === 'number' && parsed.confianca >= 0 && parsed.confianca <= 1) ? parsed.confianca : 0;\n\n    output.push({ json: {\n      erro: false, emailId: dados.emailId, threadId: dados.threadId, remetente: dados.remetente, assunto: dados.assunto,\n      categoria, confianca, respostaSugerida: parsed.resposta_sugerida || '', confiancaAlta: confianca >= 0.8\n    }});\n  } catch (err) {\n    output.push({ json: {\n      erro: true, motivo: `Failed to parse AI response: ${err.message}`,\n      emailId: dados.emailId, threadId: dados.threadId, remetente: dados.remetente, assunto: dados.assunto,\n      categoria: 'Outro', confianca: 0, respostaSugerida: '', confiancaAlta: false\n    }});\n  }\n}\n\nreturn output;"
+        "jsCode": "// See file email_code_2_validar_ia.js in the manual\nconst CATEGORIAS_VALIDAS = ['Suporte', 'Vendas', 'Financeiro', 'Outro'];\nconst items = $input.all();\nconst output = [];\n\nfor (const item of items) {\n  const dados = $('Clean and Prepare Text').item.json;\n  try {\n    let bruto = item.json.content || item.json.message?.content || item.json.choices?.[0]?.message?.content || item.json.text || '';\n    bruto = bruto.replace(/```json|```/g, '').trim();\n    const parsed = JSON.parse(bruto);\n    const categoria = CATEGORIAS_VALIDAS.includes(parsed.categoria) ? parsed.categoria : 'Outro';\n    const confianca = (typeof parsed.confianca === 'number' && parsed.confianca >= 0 && parsed.confianca <= 1) ? parsed.confianca : 0;\n\n    output.push({ json: {\n      erro: false, emailId: dados.emailId, threadId: dados.threadId, remetente: dados.remetente, assunto: dados.assunto,\n      categoria, confianca, respostaSugerida: parsed.resposta_sugerida || '', confiancaAlta: confianca >= 0.8\n    }});\n  } catch (err) {\n    output.push({ json: {\n      erro: true, motivo: `Failed to parse AI response: ${err.message}`,\n      emailId: dados.emailId, threadId: dados.threadId, remetente: dados.remetente, assunto: dados.assunto,\n      categoria: 'Outro', confianca: 0, respostaSugerida: '', confiancaAlta: false\n    }});\n  }\n}\n\nreturn output;"
       },
       "id": "code-validar",
       "name": "Validate AI Response",
