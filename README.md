@@ -29,7 +29,7 @@ This reduces response time and prevents important emails from sitting unanswered
 
 1. In n8n, click **"+ Add workflow"**.
 2. Click the three dots (**⋯**) → **"Import from File"**.
-3. Select the `email-triage-ai.json` file.
+3. Select the `email-triage-ai-en.json` file.
 
 ---
 
@@ -57,7 +57,7 @@ This reduces response time and prevents important emails from sitting unanswered
 By default, the workflow only auto-replies when the AI has **80% confidence or higher**. To change this:
 
 1. Open the **"Validate AI Response"** node.
-2. Find the line `confiancaAlta: confianca >= 0.8` in the code.
+2. Find the line `highConfidence: confidence >= 0.8` in the code.
 3. Replace `0.8` with the value you want (e.g., `0.9` to be more conservative).
 
 ---
@@ -85,9 +85,7 @@ By default, the workflow only auto-replies when the AI has **80% confidence or h
 Yes, that's why the confidence field exists. Adjust the threshold (Step 5) to match the safety level your operation requires.
 
 **Can I add more categories (e.g., HR, Legal)?**
-Yes. Edit the `CATEGORIAS_VALIDAS` list in the "Validate AI Response" node, the prompt in the "Classify Email with AI" node, and add a new output in the "Route by Category" node.
-
-*Note: the internal category values in the code (`Suporte`, `Vendas`, `Financeiro`, `Outro`) are still in Portuguese — this is just internal logic and doesn't affect what the AI or the workflow does. If you want the code itself fully in English, rename those values consistently in the "Classify Email with AI" prompt and the "Validate AI Response" node together, so they still match each other.*
+Yes. Edit the `VALID_CATEGORIES` list in the "Validate AI Response" node, the prompt in the "Classify Email with AI" node, and add a new output in the "Route by Category" node.
 
 **Does the workflow reply to emails in any language?**
 Yes, the AI model detects and replies in the same language as the received email, as long as the prompt isn't manually restricted to a specific language.
