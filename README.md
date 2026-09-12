@@ -1,91 +1,91 @@
-# Installation Manual — AI Email Triage & Auto-Response
+# Manual de Instalação — Triagem e Resposta Automática de E-mails com IA
 
-## What this template does
+## O que esse template faz
 
-This workflow automatically reads incoming emails in your inbox, uses Artificial Intelligence to understand what each one is about (Support, Sales, Finance, or Other), and decides what to do next:
+Esse fluxo de trabalho lê automaticamente os e-mails recebidos na sua caixa de entrada, usa Inteligência Artificial para entender do que cada um se trata (Suporte, Vendas, Financeiro ou Outro) e decide o que fazer em seguida:
 
-- If it's a simple support question and the AI has high confidence in the answer → it **replies automatically**.
-- If it's a support question but the AI isn't confident → it **notifies your team on Slack** for manual review.
-- If it's Sales or Finance → it **notifies the right Slack channel** with a summary of the email.
-- If it can't classify the email → it falls into a safety category, notifying the general team.
+- Se for uma pergunta simples de suporte e a IA tiver alta confiança na resposta → ela **responde automaticamente**.
+- Se for uma pergunta de suporte mas a IA não tiver confiança suficiente → ela **notifica sua equipe no Slack** para revisão manual.
+- Se for Vendas ou Financeiro → ela **notifica o canal certo no Slack** com um resumo do e-mail.
+- Se não conseguir classificar o e-mail → ele cai em uma categoria de segurança, notificando a equipe geral.
 
-This reduces response time and prevents important emails from sitting unanswered in the inbox.
-
----
-
-## Step 1 — Prepare Gmail
-
-1. Create two labels in Gmail: **"AI-Replied"** and **"Needs-Review"**.
-2. Make sure the connected account has read and send permissions (this is standard with Gmail's OAuth authentication).
-
-## Step 2 — Prepare Slack
-
-1. Create (or use existing) channels to receive notifications — for example: `#support`, `#sales`, `#finance`, `#general`.
-2. Add the Slack bot (which you'll connect in Step 4) to these channels.
+Isso reduz o tempo de resposta e evita que e-mails importantes fiquem parados sem resposta na caixa de entrada.
 
 ---
 
-## Step 3 — Import the workflow into n8n
+## Passo 1 — Preparar o Gmail
 
-1. In n8n, click **"+ Add workflow"**.
-2. Click the three dots (**⋯**) → **"Import from File"**.
-3. Select the `email-triage-ai-en.json` file.
+1. Crie dois rótulos (labels) no Gmail: **"AI-Replied"** e **"Needs-Review"**.
+2. Certifique-se de que a conta conectada tenha permissões de leitura e envio (isso é padrão na autenticação OAuth do Gmail).
+
+## Passo 2 — Preparar o Slack
+
+1. Crie (ou use canais já existentes) para receber as notificações — por exemplo: `#support`, `#sales`, `#finance`, `#general`.
+2. Adicione o bot do Slack (que você vai conectar no Passo 4) a esses canais.
 
 ---
 
-## Step 4 — Connect the credentials
+## Passo 3 — Importar o fluxo de trabalho no n8n
+
+1. No n8n, clique em **"+ Add workflow"**.
+2. Clique nos três pontinhos (**⋯**) → **"Import from File"**.
+3. Selecione o arquivo `email-triage-ai-en.json`.
+
+---
+
+## Passo 4 — Conectar as credenciais
 
 **Gmail:**
-1. Double-click the **"New Email Received"** node.
-2. Under Credential → "Create New" → sign in with the Gmail account you want to monitor.
-3. Repeat for the **"Reply Automatically"** node — same credential.
+1. Dê um duplo clique no node **"New Email Received"**.
+2. Em Credential → "Create New" → faça login com a conta do Gmail que você quer monitorar.
+3. Repita para o node **"Reply Automatically"** — usando a mesma credencial.
 
 **OpenAI:**
-1. Double-click the **"Classify Email with AI"** node.
-2. Under Credential → "Create New" → paste your OpenAI API Key (generated at platform.openai.com/api-keys).
-3. The default model configured is `gpt-4o-mini` (good cost-to-performance ratio). You can switch to another model if you need higher accuracy.
+1. Dê um duplo clique no node **"Classify Email with AI"**.
+2. Em Credential → "Create New" → cole sua OpenAI API Key (gerada em platform.openai.com/api-keys).
+3. O modelo padrão configurado é `gpt-4o-mini` (boa relação custo-benefício). Você pode trocar por outro modelo se precisar de mais precisão.
 
 **Slack:**
-1. Double-click any **"Notify..."** node (there are four: Support, Sales, Finance, General Team).
-2. Under Credential → "Create New" → connect via OAuth with your Slack workspace.
-3. **Important:** in each of the 4 Slack nodes, replace the placeholder text `REPLACE_SUPPORT_CHANNEL`, `REPLACE_SALES_CHANNEL`, `REPLACE_FINANCE_CHANNEL`, and `REPLACE_GENERAL_CHANNEL` with the actual channel (select it from the field's dropdown list).
+1. Dê um duplo clique em qualquer node **"Notify..."** (são quatro: Support, Sales, Finance, General Team).
+2. Em Credential → "Create New" → conecte via OAuth com seu workspace do Slack.
+3. **Importante:** em cada um dos 4 nodes do Slack, substitua o texto de placeholder `REPLACE_SUPPORT_CHANNEL`, `REPLACE_SALES_CHANNEL`, `REPLACE_FINANCE_CHANNEL` e `REPLACE_GENERAL_CHANNEL` pelo canal real (selecione na lista suspensa do campo).
 
 ---
 
-## Step 5 — Adjust the confidence threshold (optional)
+## Passo 5 — Ajustar o limite de confiança (opcional)
 
-By default, the workflow only auto-replies when the AI has **80% confidence or higher**. To change this:
+Por padrão, o fluxo só responde automaticamente quando a IA tem **80% de confiança ou mais**. Para alterar isso:
 
-1. Open the **"Validate AI Response"** node.
-2. Find the line `highConfidence: confidence >= 0.8` in the code.
-3. Replace `0.8` with the value you want (e.g., `0.9` to be more conservative).
-
----
-
-## Step 6 — Test the workflow
-
-1. Send a simple test email to the connected inbox (e.g., "What are your business hours?").
-2. Run the workflow manually in n8n (the "Execute Workflow" button, or the play icon on the first node).
-3. Check that:
-   - The "Classify Email with AI" node returned a coherent category.
-   - If confidence was high, the reply arrived in the test mailbox.
-   - If confidence was low, the notification arrived in the correct Slack channel.
-4. Send a second test email clearly related to "Sales" or "Finance" to confirm the routing works.
-5. Everything working? Click **"Active"** to let it run automatically.
+1. Abra o node **"Validate AI Response"**.
+2. Encontre a linha `highConfidence: confidence >= 0.8` no código.
+3. Substitua `0.8` pelo valor desejado (ex.: `0.9` para ser mais conservador).
 
 ---
 
-## Important precautions before going live
+## Passo 6 — Testar o fluxo de trabalho
 
-⚠️ **Recommendation:** for the first few weeks, keep the confidence threshold high (0.85+) and closely monitor the automatic replies. An incorrectly answered email can create problems with a client — it's better to escalate too much to a human at first and fine-tune the model over time.
+1. Envie um e-mail de teste simples para a caixa de entrada conectada (ex.: "Qual o horário de atendimento?").
+2. Execute o fluxo manualmente no n8n (botão "Execute Workflow", ou o ícone de play no primeiro node).
+3. Verifique se:
+   - O node "Classify Email with AI" retornou uma categoria coerente.
+   - Se a confiança foi alta, a resposta chegou na caixa de e-mail de teste.
+   - Se a confiança foi baixa, a notificação chegou no canal certo do Slack.
+4. Envie um segundo e-mail de teste, claramente relacionado a "Vendas" ou "Financeiro", para confirmar que o roteamento funciona.
+5. Está tudo certo? Clique em **"Active"** para deixar o fluxo rodando automaticamente.
 
-## FAQ
+---
 
-**Can the AI reply with something wrong?**
-Yes, that's why the confidence field exists. Adjust the threshold (Step 5) to match the safety level your operation requires.
+## Precauções importantes antes de colocar no ar
 
-**Can I add more categories (e.g., HR, Legal)?**
-Yes. Edit the `VALID_CATEGORIES` list in the "Validate AI Response" node, the prompt in the "Classify Email with AI" node, and add a new output in the "Route by Category" node.
+⚠️ **Recomendação:** nas primeiras semanas, mantenha o limite de confiança alto (0.85+) e monitore de perto as respostas automáticas. Um e-mail respondido incorretamente pode gerar problemas com um cliente — é melhor escalar demais para um humano no início e ajustar o modelo aos poucos.
 
-**Does the workflow reply to emails in any language?**
-Yes, the AI model detects and replies in the same language as the received email, as long as the prompt isn't manually restricted to a specific language.
+## Perguntas frequentes
+
+**A IA pode responder algo errado?**
+Sim, por isso existe o campo de confiança. Ajuste o limite (Passo 5) de acordo com o nível de segurança que sua operação exige.
+
+**Posso adicionar mais categorias (ex.: RH, Jurídico)?**
+Sim. Edite a lista `VALID_CATEGORIES` no node "Validate AI Response", o prompt no node "Classify Email with AI", e adicione uma nova saída no node "Route by Category".
+
+**O fluxo responde e-mails em qualquer idioma?**
+Sim, o modelo de IA detecta e responde no mesmo idioma do e-mail recebido, desde que o prompt não esteja manualmente restrito a um idioma específico.
